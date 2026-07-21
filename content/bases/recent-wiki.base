@@ -1,0 +1,13 @@
+view: table
+filter:
+  and:
+    - not:
+        path: inbox/
+columns:
+  - property: title
+  - property: date
+  - property: tags
+  - property: source
+sort:
+  - property: updated
+    direction: desc

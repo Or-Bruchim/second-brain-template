@@ -1,0 +1,25 @@
+name: Supabase Keep-Alive
+
+# Prevents the free-tier Supabase project from auto-pausing (which happens
+# after ~7 days of no DB activity and takes the project off DNS entirely).
+# Runs every 3 days — comfortably inside that window even if a run is skipped.
+"on":
+  schedule:
+    - cron: '0 8 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/keepalive.mjs

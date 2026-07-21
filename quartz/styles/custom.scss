@@ -1,0 +1,87 @@
+@use "./base.scss";
+@use "./variables.scss" as *;
+
+// ── Sidebar toggle ─────────────────────────────────────────────────────────
+#sidebar-toggle-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; flex-shrink: 0;
+  border: 1px solid var(--lightgray); border-radius: 5px;
+  background: transparent; color: var(--dark);
+  cursor: pointer; padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: var(--lightgray); }
+}
+
+// Smooth collapse
+.left.sidebar {
+  transition: opacity 0.2s ease;
+  overflow: hidden;
+}
+
+body.sidebar-hidden .left.sidebar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+// Collapse the grid column so content re-centers
+.page > #quartz-body {
+  transition: grid-template-columns 0.25s ease;
+}
+body.sidebar-hidden .page > #quartz-body {
+  grid-template-columns: 0 auto 320px !important;
+}
+
+// Floating re-open tab
+#sidebar-open-tab {
+  display: none;
+  position: fixed; left: 8px; top: 16px; z-index: 1000;
+  width: 28px; height: 28px; align-items: center; justify-content: center;
+  border: 1px solid var(--lightgray); border-radius: 6px;
+  background: var(--light); color: var(--dark);
+  cursor: pointer; padding: 0;
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.08);
+  transition: background 0.15s;
+  &:hover { background: var(--lightgray); }
+}
+
+body.sidebar-hidden #sidebar-open-tab { display: flex; }
+
+// Mobile polish — site-wide overrides
+
+// 1. Reserve space at bottom of page so the BrainChat floating button
+//    doesn't cover the last paragraph or footer links on mobile.
+@media all and ($mobile) {
+  footer {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+// 2. Mobile sidebar.left — keep it stacked vertically on small screens
+//    (default Quartz uses flex-direction: row which crowds title + search + explorer).
+@media all and ($mobile) {
+  .page > #quartz-body .sidebar.left,
+  .page > #quartz-body .sidebar.left:has(.explorer) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 1rem 1rem 0;
+  }
+}
+
+// 3. Search input on mobile — prevent iOS Safari zoom-on-focus
+//    (any input < 16px triggers zoom).
+@media all and ($mobile) {
+  #search-bar,
+  .search input {
+    font-size: 16px;
+  }
+}
+
+// 4. Tighter article horizontal padding on phones so content isn't squeezed.
+@media (max-width: 480px) {
+  .page > #quartz-body .center,
+  .page > #quartz-body footer {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}

@@ -1,0 +1,11 @@
+view: table
+filter:
+  and:
+    - path: projects/
+columns:
+  - property: title
+  - property: tags
+  - property: updated
+sort:
+  - property: updated
+    direction: desc

@@ -1,0 +1,175 @@
+@use "../../styles/variables.scss" as *;
+
+.graph {
+  & > h3 {
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  & > h3 .graph-title-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    &:hover {
+      color: var(--secondary);
+      text-decoration: underline;
+    }
+  }
+
+  & > .graph-outer {
+    border-radius: 8px;
+    border: 1px solid var(--lightgray);
+    box-sizing: border-box;
+    height: 380px;
+    margin: 0.5em 0;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 40% 35%, var(--light) 0%, color-mix(in srgb, var(--light) 80%, var(--lightgray)) 100%);
+
+    & > .graph-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    & > .graph-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    & > .graph-legend {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--lightgray);
+      border-radius: 8px;
+      padding: 6px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      pointer-events: none;
+    }
+    & > .graph-legend .graph-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--darkgray);
+      font-family: var(--bodyFont);
+      line-height: 1;
+    }
+    & > .graph-legend .graph-legend-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    & > .global-graph-icon {
+      cursor: pointer;
+      background: var(--light);
+      border: 1px solid var(--lightgray);
+      color: var(--dark);
+      opacity: 1;
+      width: auto;
+      height: 24px;
+      position: absolute;
+      padding: 0.15rem 0.5rem;
+      margin: 0.4rem;
+      top: 0;
+      right: 0;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background-color 0.15s, border-color 0.15s;
+      &:hover {
+        background-color: var(--lightgray);
+        border-color: var(--gray);
+      }
+    }
+  }
+
+  & > .global-graph-outer {
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(8px);
+    display: none;
+    overflow: hidden;
+
+    &.active {
+      display: inline-block;
+    }
+
+    & > .global-graph-container {
+      border: 1px solid var(--lightgray);
+      background: radial-gradient(ellipse at 45% 40%, var(--light) 0%, color-mix(in srgb, var(--light) 82%, var(--lightgray)) 100%);
+      border-radius: 5px;
+      box-sizing: border-box;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      height: 80vh;
+      width: 80vw;
+
+      @media all and not ($desktop) {
+        width: 90%;
+      }
+    }
+  }
+}
+
+@keyframes graph-spin {
+  to { transform: rotate(360deg) }
+}
+
+@keyframes node-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.75; }
+}
+
+@keyframes link-flow {
+  to { stroke-dashoffset: -20; }
+}
+
+circle.current-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-pulse 2s ease-in-out infinite;
+}
+
+line.animated-link {
+  stroke-dashoffset: 0;
+  animation: link-flow 1.5s linear infinite;
+}
+
+.graph-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 10;
+  pointer-events: none;
+  color: var(--gray);
+  font-family: var(--bodyFont);
+  font-size: 0.85rem;
+
+  svg {
+    animation: graph-spin 0.9s linear infinite;
+    opacity: 0.6;
+  }
+}

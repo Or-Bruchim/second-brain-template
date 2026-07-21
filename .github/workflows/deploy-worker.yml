@@ -1,0 +1,26 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches: [main]  # TODO: update if your default branch differs
+    paths:
+      - 'worker/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          workingDirectory: worker
+          wranglerVersion: '4.86.0'

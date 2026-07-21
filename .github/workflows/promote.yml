@@ -1,0 +1,72 @@
+name: Promote inbox → wiki
+
+on:
+  push:
+    paths:
+      - 'content/inbox/**.md'
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Comma-separated paths to promote (e.g. content/inbox/2026-04-30-1.md,content/inbox/2026-04-30-2.md). Leave blank to use git diff.'
+        required: false
+        type: string
+
+concurrency:
+  # For push-triggered runs: serialize per branch to avoid git push races.
+  # For workflow_dispatch: each run gets its own group so batches don't cancel each other.
+  group: ${{ github.event_name == 'workflow_dispatch' && format('promote-dispatch-{0}', github.run_id) || format('promote-{0}', github.ref) }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    # Skip when this run was triggered by promote/lint themselves (avoids loop).
+    if: |
+      !startsWith(github.event.head_commit.message, 'promote:') &&
+      !startsWith(github.event.head_commit.message, 'lint:') &&
+      !contains(github.event.head_commit.message, '[skip promote]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need HEAD~1 for git diff
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run promote
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROMOTE_FILES: ${{ inputs.files }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OWNER_CHAT_ID: ${{ secrets.TELEGRAM_OWNER_CHAT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node scripts/promote.mjs
+
+      - name: Commit wiki updates
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add content/notes content/projects content/meetings content/decisions content/catalog.md content/log.md content/overview.md 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No promote changes to commit."
+            exit 0
+          fi
+          git commit -m "promote: integrate inbox captures into wiki layer [skip ci]"
+          for i in 1 2 3 4 5; do
+            git rebase --abort 2>/dev/null || true
+            git pull --rebase --autostash origin main && git push origin HEAD:main && exit 0
+            echo "push rejected (attempt $i), retrying after fetch..."
+            sleep $(( (RANDOM % 8) + 2 ))
+          done
+          echo "::error::failed to push after 5 attempts"
+          exit 1

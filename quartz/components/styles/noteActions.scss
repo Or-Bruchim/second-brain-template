@@ -1,0 +1,361 @@
+.note-actions-root {
+  // Action bar above the article body
+  .note-actions-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0.5rem 0 1rem;
+    flex-wrap: wrap;
+  }
+
+  .note-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    border: 1px solid var(--lightgray);
+    background: var(--light);
+    color: var(--dark);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: var(--lightgray);
+      border-color: var(--gray);
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  .note-action-delete {
+    &:hover {
+      background: rgba(220, 38, 38, 0.08);
+      border-color: rgba(220, 38, 38, 0.5);
+      color: rgb(220, 38, 38);
+    }
+  }
+
+  // Modal
+  .note-actions-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .note-actions-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+
+  .note-actions-modal-panel {
+    position: relative;
+    width: min(1200px, 95vw);
+    height: min(85vh, 900px);
+    background: var(--light);
+    border: 1px solid var(--lightgray);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .note-actions-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--lightgray);
+    flex-shrink: 0;
+  }
+
+  .note-actions-modal-title {
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  .note-actions-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .note-actions-tab {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--darkgray);
+    cursor: pointer;
+
+    &.is-active {
+      background: var(--lightgray);
+      color: var(--dark);
+    }
+
+    &:hover:not(.is-active) {
+      background: var(--lightgray);
+    }
+  }
+
+  .note-actions-modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-left: 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--darkgray);
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--lightgray);
+      color: var(--dark);
+    }
+  }
+
+  .note-actions-auth {
+    padding: 1rem;
+    border-bottom: 1px solid var(--lightgray);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .note-actions-auth-msg {
+    margin: 0;
+    font-size: 0.9rem;
+    flex-basis: 100%;
+  }
+
+  .note-actions-auth-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--lightgray);
+    background: var(--light);
+    color: var(--dark);
+    font-size: 0.9rem;
+  }
+
+  .note-actions-auth-submit {
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid var(--secondary);
+    background: var(--secondary);
+    color: var(--light);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .note-actions-auth-error {
+    flex-basis: 100%;
+    margin: 0;
+    color: rgb(220, 38, 38);
+    font-size: 0.85rem;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // Body — split / edit / preview panes
+  .note-actions-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    min-height: 0;
+
+    &[data-pane="edit"] {
+      grid-template-columns: 1fr;
+
+      .note-actions-pane-preview {
+        display: none;
+      }
+    }
+
+    &[data-pane="preview"] {
+      grid-template-columns: 1fr;
+
+      .note-actions-pane-edit {
+        display: none;
+      }
+    }
+  }
+
+  .note-actions-pane {
+    overflow: auto;
+    min-height: 0;
+
+    & + .note-actions-pane {
+      border-left: 1px solid var(--lightgray);
+    }
+  }
+
+  .note-actions-pane-edit {
+    display: flex;
+  }
+
+  .note-actions-textarea {
+    width: 100%;
+    flex: 1;
+    border: none;
+    resize: none;
+    padding: 1rem;
+    background: var(--light);
+    color: var(--dark);
+    font-family: var(--codeFont, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    outline: none;
+    tab-size: 2;
+    direction: ltr;
+    unicode-bidi: plaintext;
+  }
+
+  .note-actions-preview {
+    padding: 1.25rem 1.5rem;
+    color: var(--dark);
+    font-size: 0.95rem;
+    line-height: 1.6;
+
+    h1, h2, h3, h4 { margin-top: 1.2em; }
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.3rem; }
+    h3 { font-size: 1.1rem; }
+    p { margin: 0.5em 0; }
+    code {
+      background: var(--lightgray);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre {
+      background: var(--lightgray);
+      padding: 0.75rem;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    blockquote {
+      border-left: 3px solid var(--secondary);
+      padding-left: 0.9rem;
+      margin: 0.6em 0;
+      color: var(--darkgray);
+    }
+    ul, ol { padding-left: 1.5em; }
+    a { color: var(--secondary); }
+  }
+
+  .note-actions-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--lightgray);
+    flex-shrink: 0;
+    gap: 0.5rem;
+  }
+
+  .note-actions-status {
+    font-size: 0.85rem;
+    color: var(--darkgray);
+
+    &[data-kind="ok"] { color: rgb(22, 163, 74); }
+    &[data-kind="error"] { color: rgb(220, 38, 38); }
+  }
+
+  .note-actions-modal-buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .note-actions-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--lightgray);
+    background: var(--light);
+    color: var(--dark);
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover { background: var(--lightgray); }
+
+    &.is-primary {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      color: var(--light);
+
+      &:hover { filter: brightness(0.95); }
+      &:disabled { opacity: 0.6; cursor: not-allowed; }
+    }
+  }
+
+  // Responsive: stack panes on small screens — match site mobile breakpoint (800px)
+  @media (max-width: 800px) {
+    .note-action {
+      padding: 0.5rem 0.85rem;
+      font-size: 0.9rem;
+      min-height: 36px;
+    }
+
+    .note-actions-body {
+      grid-template-columns: 1fr;
+
+      &[data-pane="split"] {
+        grid-template-rows: 1fr 1fr;
+      }
+    }
+
+    .note-actions-pane + .note-actions-pane {
+      border-left: none;
+      border-top: 1px solid var(--lightgray);
+    }
+
+    .note-actions-modal-panel {
+      height: 100dvh;
+      max-height: 100dvh;
+      width: 100vw;
+      width: 100dvw;
+      border-radius: 0;
+      border: none;
+    }
+
+    .note-actions-modal-header,
+    .note-actions-modal-footer {
+      padding: 0.6rem 0.75rem;
+    }
+
+    .note-actions-tab {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.85rem;
+    }
+
+    .note-actions-textarea {
+      font-size: 16px; // prevents iOS Safari zoom-on-focus
+    }
+  }
+}

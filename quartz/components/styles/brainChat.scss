@@ -1,0 +1,511 @@
+// Second Brain Chat — floating widget
+// Uses Quartz design tokens — see ~/.claude/design-system.md
+@use "sass:color";
+
+// Honor the [hidden] attribute (overrides explicit display: flex below)
+.brain-chat-root [hidden] { display: none !important; }
+
+$brain-primary: #201f87;
+$brain-gradient-start: #355872;
+$brain-gradient-end: #7AAACE;
+
+.brain-chat-root {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  right: calc(24px + env(safe-area-inset-right, 0px));
+  z-index: 9999;
+  font-family: var(--bodyFont, "Assistant"), system-ui, sans-serif;
+
+  @media (max-width: 800px) {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: calc(16px + env(safe-area-inset-right, 0px));
+  }
+}
+
+.brain-chat-fab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 12px 16px;
+  background: linear-gradient(135deg, $brain-gradient-start, $brain-gradient-end);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: -6px 4px 16px rgba(0, 0, 0, 0.20);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: -8px 6px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  .brain-chat-fab-label {
+    @media (max-width: 600px) {
+      display: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    padding: 12px;
+  }
+}
+
+.brain-chat-panel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  height: 640px;
+  max-height: calc(100vh - 80px);
+  background: var(--light, #ffffff);
+  border: 1px solid var(--lightgray, #f1f5f9);
+  border-radius: 20px;
+  box-shadow: -10px 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: brain-chat-pop 0.2s ease-out;
+
+  @media (max-width: 800px) {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    width: 100dvw;
+    max-width: 100vw;
+    max-width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+}
+
+@keyframes brain-chat-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.brain-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, $brain-gradient-start, $brain-gradient-end);
+  color: white;
+}
+
+.brain-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-family: var(--headerFont, "Urbanist"), sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.brain-chat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+  animation: brain-chat-pulse 2s ease-in-out infinite;
+}
+
+@keyframes brain-chat-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.brain-chat-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.brain-chat-icon-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+.brain-chat-auth {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .brain-chat-auth-msg {
+    margin: 0;
+    font-size: 14px;
+    color: var(--darkgray, #334155);
+    text-align: center;
+  }
+
+  .brain-chat-auth-input {
+    padding: 10px 12px;
+    border: 1px solid var(--lightgray, #f1f5f9);
+    border-radius: 10px;
+    font-size: 14px;
+    background: var(--light, white);
+    color: var(--dark, #0f172a);
+
+    &:focus {
+      outline: none;
+      border-color: $brain-gradient-end;
+    }
+  }
+
+  .brain-chat-auth-submit {
+    padding: 10px;
+    background: $brain-primary;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+
+    &:hover {
+      background: color.adjust($brain-primary, $lightness: 8%);
+    }
+  }
+
+  .brain-chat-auth-error {
+    margin: 0;
+    color: #ef4444;
+    font-size: 13px;
+    text-align: center;
+  }
+}
+
+.brain-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--light, #ffffff);
+}
+
+.brain-chat-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--gray, #94a3b8);
+
+  p {
+    margin: 0 0 16px;
+    font-size: 14px;
+  }
+}
+
+.brain-chat-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.brain-chat-quick-btn {
+  padding: 6px 12px;
+  background: rgba(32, 31, 135, 0.06);
+  color: $brain-primary;
+  border: 1px solid rgba(32, 31, 135, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(32, 31, 135, 0.12);
+  }
+}
+
+.brain-chat-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  animation: brain-chat-slide-in 0.2s ease-out;
+}
+
+@keyframes brain-chat-slide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.brain-chat-msg-user {
+  align-self: flex-end;
+
+  .brain-chat-bubble {
+    background: linear-gradient(135deg, $brain-gradient-start, $brain-gradient-end);
+    color: white;
+    border-radius: 16px 16px 4px 16px;
+  }
+}
+
+.brain-chat-msg-assistant {
+  align-self: flex-start;
+
+  .brain-chat-bubble {
+    background: var(--lightgray, #f1f5f9);
+    color: var(--dark, #0f172a);
+    border-radius: 16px 16px 16px 4px;
+  }
+}
+
+.brain-chat-bubble {
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+
+  p {
+    margin: 0 0 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  code {
+    font-family: var(--codeFont, "IBM Plex Mono"), monospace;
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  pre {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 8px 10px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 8px 0;
+
+    code {
+      background: transparent;
+      padding: 0;
+    }
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+  }
+}
+
+.brain-chat-msg-user .brain-chat-bubble code {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.brain-chat-sources {
+  margin-top: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--gray, #94a3b8);
+
+  span {
+    font-weight: 600;
+    margin-right: 4px;
+  }
+
+  a {
+    color: $brain-gradient-end;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.brain-chat-save-btn {
+  margin-top: 8px;
+  margin-left: 6px;
+  padding: 6px 12px;
+  background: rgba(32, 31, 135, 0.08);
+  color: $brain-primary;
+  border: 1px solid rgba(32, 31, 135, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: rgba(32, 31, 135, 0.15);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+}
+
+.brain-chat-save-link {
+  font-size: 12px;
+  color: $brain-gradient-end;
+  margin-left: 4px;
+}
+
+.brain-chat-synth-btn {
+  background: linear-gradient(135deg, rgba(53, 88, 114, 0.10), rgba(122, 170, 206, 0.18));
+  border: 1px solid rgba(53, 88, 114, 0.25);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(53, 88, 114, 0.18), rgba(122, 170, 206, 0.30));
+  }
+}
+
+.brain-chat-thinking .brain-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+
+  span {
+    width: 6px;
+    height: 6px;
+    background: var(--gray, #94a3b8);
+    border-radius: 50%;
+    animation: brain-chat-typing-dot 1.2s ease-in-out infinite;
+
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+
+@keyframes brain-chat-typing-dot {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.brain-chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--lightgray, #f1f5f9);
+  background: var(--light, #ffffff);
+}
+
+.brain-chat-attach,
+.brain-chat-send {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.brain-chat-attach {
+  background: transparent;
+  color: var(--gray, #94a3b8);
+
+  &:hover {
+    background: var(--lightgray, #f1f5f9);
+    color: var(--dark, #0f172a);
+  }
+}
+
+.brain-chat-send {
+  background: $brain-primary;
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: color.adjust($brain-primary, $lightness: 8%);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.brain-chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--lightgray, #f1f5f9);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  background: var(--light, white);
+  color: var(--dark, #0f172a);
+  max-height: 160px;
+
+  &:focus {
+    outline: none;
+    border-color: $brain-gradient-end;
+  }
+}
+
+.brain-chat-attachment-preview {
+  padding: 6px 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brain-chat-attachment-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--darkgray, #334155);
+  background: rgba(32, 31, 135, 0.06);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.brain-chat-attachment-remove {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--gray, #94a3b8);
+  padding: 0 4px;
+
+  &:hover {
+    color: #ef4444;
+  }
+}
+
+// Dark mode
+:root[saved-theme="dark"] {
+  .brain-chat-panel {
+    background: var(--light, #0f172a);
+    border-color: var(--lightgray, #1e293b);
+  }
+  .brain-chat-msg-assistant .brain-chat-bubble {
+    background: var(--lightgray, #1e293b);
+    color: var(--dark, #f1f5f9);
+  }
+  .brain-chat-input-row {
+    border-top-color: var(--lightgray, #1e293b);
+  }
+}

@@ -1,0 +1,33 @@
+name: Deploy Quartz to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]  # TODO: update if your default branch differs
+    paths-ignore:
+      - 'worker/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Quartz + knowledge graph
+        run: npm run build:brain
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          wranglerVersion: '3'
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy public --project-name=your-project-name --branch=main  # TODO: match your Cloudflare Pages project name + branch

@@ -1,0 +1,61 @@
+name: Embed Knowledge Base
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]  # TODO: update if your default branch differs
+    paths:
+      - 'content/**/*.md'
+
+# Serialize embed runs so two never race on quartz/static/kg/graph.json.
+# cancel-in-progress: false → queued runs wait their turn instead of being dropped,
+# so every push still gets embedded.
+concurrency:
+  group: embed-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  embed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run embedding pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node scripts/embed.mjs
+
+      - name: Rebuild graph on latest tip and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            node scripts/build-graph.mjs
+            git add quartz/static/kg/graph.json quartz/static/kg/manifest.json
+            if git diff --cached --quiet; then
+              echo "No graph changes to commit."
+              exit 0
+            fi
+            git commit -m "chore: rebuild graph + manifest [skip ci]"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "push rejected (attempt $i), rebuilding on new tip..."
+            sleep $(( (RANDOM % 5) + 2 ))
+          done
+          echo "::error::failed to push after 5 attempts"
+          exit 1

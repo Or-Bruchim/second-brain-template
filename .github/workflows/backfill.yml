@@ -1,0 +1,67 @@
+name: Backfill connectivity
+
+# One-off connectivity backfill: synthesize inbox captures that no wiki page
+# cites yet into the wiki layer (densely linked, added to MOCs), using the same
+# promote.mjs pipeline in BACKFILL mode. Manual-only. Re-dispatch until the run
+# log reports "0 uncited inbox file(s) remaining".
+
+"on":
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'How many uncited inbox files to promote this run.'
+        required: false
+        default: '10'
+        type: string
+
+concurrency:
+  group: backfill-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run backfill
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BACKFILL: '1'
+          BACKFILL_LIMIT: ${{ inputs.limit }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_OWNER_CHAT_ID: ${{ secrets.TELEGRAM_OWNER_CHAT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node scripts/promote.mjs
+
+      - name: Commit wiki updates
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add content/notes content/projects content/meetings content/decisions content/catalog.md content/log.md content/overview.md 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No backfill changes to commit."
+            exit 0
+          fi
+          git commit -m "promote: backfill connectivity for uncited inbox captures [skip ci]"
+          for i in 1 2 3 4 5; do
+            git rebase --abort 2>/dev/null || true
+            git pull --rebase --autostash origin main && git push origin HEAD:main && exit 0
+            echo "push rejected (attempt $i), retrying after fetch..."
+            sleep $(( (RANDOM % 8) + 2 ))
+          done
+          echo "::error::failed to push after 5 attempts"
+          exit 1

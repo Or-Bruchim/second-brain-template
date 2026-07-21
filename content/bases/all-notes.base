@@ -1,0 +1,12 @@
+view: table
+filter:
+  and:
+    - path: notes/
+columns:
+  - property: title
+  - property: tags
+  - property: updated
+  - property: source
+sort:
+  - property: updated
+    direction: desc

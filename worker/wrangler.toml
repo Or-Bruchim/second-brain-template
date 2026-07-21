@@ -1,0 +1,28 @@
+name = "my-brain-bot" # TODO: pick your own Worker name
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "BRAIN_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" # TODO: run `npx wrangler kv namespace create BRAIN_KV` and paste the id here
+
+[triggers]
+crons = ["*/15 * * * *", "0 5 * * *", "0 6 * * 7"]
+
+[vars]
+GITHUB_REPO = "your-github-username/your-repo-name" # TODO: replace with your repo
+GITHUB_BRANCH = "main" # TODO: replace with your default branch
+SITE_URL = "https://your-project.pages.dev" # TODO: replace with your Cloudflare Pages URL
+
+# Set these as secrets — never put real values here:
+# npx wrangler secret put TELEGRAM_BOT_TOKEN
+# npx wrangler secret put WEBHOOK_SECRET
+# npx wrangler secret put GITHUB_TOKEN
+# npx wrangler secret put ALLOWED_CHAT_IDS
+# npx wrangler secret put CHAT_PASSPHRASE
+# npx wrangler secret put GEMINI_API_KEY       ← enables deep video analysis (free tier, 1500 req/day)
+# npx wrangler secret put SUPABASE_URL         ← your Supabase project URL, e.g. https://xxxx.supabase.co
+# npx wrangler secret put SUPABASE_SERVICE_KEY ← service_role JWT (server-side only, never expose)

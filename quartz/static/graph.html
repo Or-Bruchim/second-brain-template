@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Second Brain — Knowledge Graph</title>
+  <script src="/static/cytoscape.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    :root {
+      --bg:      #080a10;
+      --bg2:     #0d0f1a;
+      --panel:   rgba(255,255,255,0.04);
+      --panel2:  rgba(8,10,20,0.97);
+      --border:  rgba(255,255,255,0.07);
+      --text:    #dde4ef;
+      --dim:     #4f627a;
+      --accent:  #5b9cf6;
+      --c-notes:   #5b9cf6;
+      --c-inbox:   #fb923c;
+      --c-journal: #34d399;
+      --c-root:    #a78bfa;
+      --c-memory:  #475569;
+    }
+    html, body {
+      height: 100%; overflow: hidden;
+      background: radial-gradient(ellipse 120% 80% at 50% 35%, #0e1628 0%, #080a10 65%);
+      color: var(--text);
+      font-family: "Assistant", system-ui, sans-serif;
+    }
+
+    /* Particle canvas — on top of graph, behind all UI */
+    #particles { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+
+    #cy { position: fixed; inset: 0; z-index: 1; }
+
+    /* ── Top bar ── */
+    #topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 14px;
+      background: rgba(8,10,20,.85); backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    #topbar h1 {
+      font-size: 14px; font-weight: 700; color: var(--accent);
+      white-space: nowrap; text-shadow: 0 0 14px rgba(91,156,246,.45);
+    }
+    #search {
+      flex: 1; max-width: 240px; padding: 5px 11px; border-radius: 7px;
+      border: 1px solid var(--border); background: var(--panel);
+      color: var(--text); font-size: 13px; outline: none;
+    }
+    #search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(91,156,246,.15); }
+    #search::placeholder { color: var(--dim); }
+    #stats { font-size: 11px; color: var(--dim); white-space: nowrap; }
+    .top-btn {
+      padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--panel); color: var(--dim);
+      transition: all .15s; white-space: nowrap;
+    }
+    .top-btn:hover, .top-btn.active { border-color: var(--accent); color: var(--text); }
+
+    /* ── Local mode bar ── */
+    #local-bar {
+      position: fixed; top: 42px; left: 0; right: 0; z-index: 9;
+      display: none; align-items: center; gap: 10px;
+      padding: 5px 14px;
+      background: rgba(91,156,246,.08); border-bottom: 1px solid rgba(91,156,246,.18);
+      font-size: 12px;
+    }
+    #local-bar.show { display: flex; }
+    #local-title {
+      font-weight: 600; color: var(--accent); flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;
+    }
+    .depth-btns { display: flex; gap: 4px; }
+    .depth-btn {
+      width: 26px; height: 22px; border-radius: 5px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--dim); font-size: 11px; cursor: pointer;
+      transition: all .15s;
+    }
+    .depth-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    #back-btn {
+      padding: 3px 9px; border-radius: 5px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--dim); font-size: 11px; cursor: pointer;
+    }
+    #back-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Settings panel ── */
+    #settings-panel {
+      position: fixed; top: 42px; right: 0; bottom: 0; z-index: 20; width: 260px;
+      background: var(--panel2); border-left: 1px solid var(--border);
+      overflow-y: auto; transform: translateX(100%);
+      transition: transform .25s ease; padding: 12px;
+    }
+    #settings-panel.open { transform: translateX(0); }
+    .sp-section { margin-bottom: 16px; }
+    .sp-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--dim); margin-bottom: 10px;
+      padding-bottom: 5px; border-bottom: 1px solid var(--border);
+    }
+    .sp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .sp-label { font-size: 12px; color: var(--dim); min-width: 90px; }
+    .sp-slider { flex: 1; accent-color: var(--accent); cursor: pointer; }
+    .sp-val { font-size: 11px; color: var(--accent); min-width: 36px; text-align: right; }
+    .sp-apply {
+      width: 100%; padding: 7px; border-radius: 7px; border: none;
+      background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
+      cursor: pointer; margin-top: 4px; transition: opacity .15s;
+    }
+    .sp-apply:hover { opacity: .82; }
+
+    /* Groups */
+    .group-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+    .group-color {
+      width: 22px; height: 22px; border-radius: 5px; border: 2px solid var(--border);
+      cursor: pointer; flex-shrink: 0; padding: 0; background: none;
+    }
+    .group-input {
+      flex: 1; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--text); font-size: 11px; outline: none;
+    }
+    .group-input:focus { border-color: var(--accent); }
+    .group-input::placeholder { color: var(--dim); }
+
+    /* ── Tooltip ── */
+    #tooltip {
+      position: fixed; z-index: 30; pointer-events: none;
+      background: rgba(8,10,20,.97); border: 1px solid rgba(91,156,246,.2);
+      border-radius: 10px; padding: 10px 13px; font-size: 12px; max-width: 200px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.6), 0 0 0 1px rgba(91,156,246,.08);
+      display: none; transform: translate(14px, -50%);
+    }
+    #tip-title { font-weight: 700; color: var(--text); margin-bottom: 3px; line-height: 1.3; }
+    #tip-meta  { font-size: 11px; color: var(--dim); }
+    #tip-tags  { font-size: 11px; color: var(--accent); margin-top: 4px; }
+    #tip-hint  {
+      font-size: 10px; color: var(--dim); margin-top: 5px;
+      border-top: 1px solid var(--border); padding-top: 4px;
+    }
+
+    /* ── Legend ── */
+    #legend {
+      position: fixed; bottom: 14px; left: 14px; z-index: 10;
+      background: rgba(8,10,20,.82); backdrop-filter: blur(14px);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;
+      font-size: 11px; color: var(--dim);
+    }
+    .leg { display: flex; align-items: center; gap: 7px; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 5px currentColor;
+    }
+
+    /* ── Recent panel ── */
+    #recent-panel {
+      position: fixed; top: 42px; left: 0; bottom: 0; z-index: 20; width: 240px;
+      background: var(--panel2); border-right: 1px solid var(--border);
+      overflow-y: auto; transform: translateX(-100%);
+      transition: transform .25s ease; padding: 10px 8px;
+    }
+    #recent-panel.open { transform: translateX(0); }
+    #recent-panel h2 { font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--dim); padding: 4px 6px 8px;
+      border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+    .rn-item {
+      display: flex; align-items: flex-start; gap: 7px;
+      padding: 7px 8px; border-radius: 7px; cursor: pointer;
+      transition: background .12s;
+    }
+    .rn-item:hover { background: rgba(91,156,246,.10); }
+    .rn-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
+      box-shadow: 0 0 4px currentColor;
+    }
+    .rn-body { flex: 1; overflow: hidden; }
+    .rn-title {
+      font-size: 12px; color: var(--text); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; line-height: 1.35;
+    }
+    .rn-date { font-size: 10px; color: var(--dim); margin-top: 1px; }
+
+    /* ── Controls ── */
+    #controls {
+      position: fixed; bottom: 14px; right: 14px; z-index: 10;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .ctrl {
+      width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--border);
+      background: rgba(8,10,20,.82); backdrop-filter: blur(8px);
+      color: var(--text); font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .ctrl:hover { background: rgba(91,156,246,.15); border-color: var(--accent); }
+    .ctrl.active { background: rgba(91,156,246,.25); border-color: var(--accent); color: var(--accent); }
+
+    /* ── Loading ── */
+    #loading {
+      position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: radial-gradient(ellipse 120% 80% at 50% 35%, #0e1628 0%, #080a10 65%);
+      gap: 16px;
+    }
+    .spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      animation: spin .75s linear infinite;
+      box-shadow: 0 0 16px rgba(91,156,246,.3);
+    }
+    #loading p { color: var(--dim); font-size: 13px; }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    /* ── Context menu ── */
+    #ctx-menu {
+      position: fixed; z-index: 40; display: none;
+      background: rgba(8,10,20,.97); border: 1px solid rgba(91,156,246,.25);
+      border-radius: 9px; padding: 4px; min-width: 145px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.7);
+    }
+    .ctx-item {
+      padding: 7px 13px; font-size: 12px; color: var(--text); border-radius: 6px;
+      cursor: pointer; transition: background .12s;
+    }
+    .ctx-item:hover { background: rgba(91,156,246,.15); }
+    /* ── Type filter chips ── */
+    #type-filters { display: flex; gap: 3px; flex-shrink: 0; }
+    .filter-chip {
+      width: 22px; height: 22px; padding: 0; display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 11px;
+      opacity: 0.35; transition: opacity .15s, border-color .15s;
+    }
+    .filter-chip[data-type="notes"]   { border-color: var(--c-notes);   color: var(--c-notes);   }
+    .filter-chip[data-type="inbox"]   { border-color: var(--c-inbox);   color: var(--c-inbox);   }
+    .filter-chip[data-type="journal"] { border-color: var(--c-journal); color: var(--c-journal); }
+    .filter-chip[data-type="root"]    { border-color: var(--c-root);    color: var(--c-root);    }
+    .filter-chip[data-type="memory"]  { border-color: var(--c-memory);  color: var(--c-memory);  }
+    .filter-chip.active { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><p>Building graph…</p></div>
+
+<canvas id="particles"></canvas>
+
+<div id="topbar">
+  <h1>🧠 Second Brain</h1>
+  <input id="search" type="search" placeholder="Search…" autocomplete="off">
+  <span id="stats"></span>
+  <button class="top-btn" id="btn-recent">🕐 Recent</button>
+  <button class="top-btn" id="btn-orphans">Show all</button>
+  <div id="type-filters">
+    <button class="top-btn filter-chip active" data-type="notes" title="Notes">N</button>
+    <button class="top-btn filter-chip active" data-type="inbox" title="Inbox">I</button>
+    <button class="top-btn filter-chip active" data-type="journal" title="Journal">J</button>
+    <button class="top-btn filter-chip active" data-type="root" title="Root">R</button>
+    <button class="top-btn filter-chip active" data-type="memory" title="Memory">M</button>
+  </div>
+  <button class="top-btn" id="btn-settings">⚙ Settings</button>
+</div>
+
+<div id="local-bar">
+  <span style="color:var(--dim);font-size:11px">Local:</span>
+  <span id="local-title"></span>
+  <span style="color:var(--dim);font-size:11px">Depth:</span>
+  <div class="depth-btns">
+    <button class="depth-btn active" data-d="1">1</button>
+    <button class="depth-btn" data-d="2">2</button>
+    <button class="depth-btn" data-d="3">3</button>
+    <button class="depth-btn" data-d="4">4</button>
+  </div>
+  <button id="back-btn">← Global</button>
+</div>
+
+<div id="recent-panel">
+  <h2>Recently Added</h2>
+  <div id="recent-list"></div>
+</div>
+
+<div id="cy"></div>
+
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-open">Open note ↗</div>
+  <div class="ctx-item" id="ctx-local">Local view</div>
+  <div class="ctx-item" id="ctx-copy">Copy link</div>
+  <div class="ctx-item" id="ctx-pin">Pin / Unpin</div>
+</div>
+
+<div id="tooltip">
+  <div id="tip-title"></div>
+  <div id="tip-meta"></div>
+  <div id="tip-tags"></div>
+  <div id="tip-hint"></div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settings-panel">
+  <div class="sp-section">
+    <div class="sp-title">Forces</div>
+    <div class="sp-row">
+      <span class="sp-label">Repel force</span>
+      <input class="sp-slider" type="range" id="sl-repel" min="1000" max="20000" step="500" value="12000">
+      <span class="sp-val" id="vl-repel">12000</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Link distance</span>
+      <input class="sp-slider" type="range" id="sl-dist" min="20" max="200" step="5" value="80">
+      <span class="sp-val" id="vl-dist">80</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Link elasticity</span>
+      <input class="sp-slider" type="range" id="sl-elas" min="10" max="300" step="10" value="100">
+      <span class="sp-val" id="vl-elas">100</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Gravity</span>
+      <input class="sp-slider" type="range" id="sl-grav" min="0.1" max="5" step="0.1" value="1.2">
+      <span class="sp-val" id="vl-grav">1.2</span>
+    </div>
+    <button class="sp-apply" id="btn-relayout">↺ Re-run layout</button>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-title">Display</div>
+    <div class="sp-row">
+      <span class="sp-label">Node size</span>
+      <input class="sp-slider" type="range" id="sl-nodesize" min="0.5" max="3" step="0.1" value="1">
+      <span class="sp-val" id="vl-nodesize">1×</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Edge width</span>
+      <input class="sp-slider" type="range" id="sl-edgewidth" min="0.5" max="5" step="0.5" value="0.8">
+      <span class="sp-val" id="vl-edgewidth">0.8</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Label fade</span>
+      <input class="sp-slider" type="range" id="sl-fade" min="0.3" max="2" step="0.05" value="0.8">
+      <span class="sp-val" id="vl-fade">0.8×</span>
+    </div>
+    <div class="sp-row">
+      <span class="sp-label">Particles</span>
+      <input class="sp-slider" type="range" id="sl-particles" min="0" max="1" step="0.05" value="0.6">
+      <span class="sp-val" id="vl-particles">60%</span>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-title">Color Groups <span style="color:var(--dim);font-weight:400">(by tag)</span></div>
+    <div id="groups-container"></div>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="dot" style="background:var(--c-notes);color:var(--c-notes)"></div>Notes</div>
+  <div class="leg"><div class="dot" style="background:var(--c-inbox);color:var(--c-inbox)"></div>Inbox</div>
+  <div class="leg"><div class="dot" style="background:var(--c-journal);color:var(--c-journal)"></div>Journal</div>
+  <div class="leg"><div class="dot" style="background:var(--c-root);color:var(--c-root)"></div>Root</div>
+  <div class="leg"><div class="dot" style="background:var(--c-memory);color:var(--c-memory)"></div>Memory</div>
+</div>
+
+<div id="controls">
+  <button class="ctrl" id="btn-fit" title="Fit all">⊞</button>
+  <button class="ctrl" id="btn-pin" title="Pin mode">📌</button>
+  <button class="ctrl" id="btn-plus" title="Zoom in">+</button>
+  <button class="ctrl" id="btn-minus" title="Zoom out">−</button>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────
+const TYPE_COLOR = {
+  notes:   '#5b9cf6',
+  inbox:   '#fb923c',
+  journal: '#34d399',
+  root:    '#a78bfa',
+  memory:  '#475569',
+}
+const GROUP_DEFAULTS = [
+  { color:'#f87171', tags:'' },
+  { color:'#34d399', tags:'' },
+  { color:'#fbbf24', tags:'' },
+  { color:'#c084fc', tags:'' },
+]
+
+// ── State ──────────────────────────────────────────────────
+let showOrphans  = false
+let localMode    = false
+let localNodeId  = null
+let localDepth   = 1
+let pinMode      = false
+let labelFade    = 0.8
+let nodeSizeMul  = 1
+let edgeWidth    = 0.8
+let particleDens = 0.6
+let groups       = GROUP_DEFAULTS.map(g => ({ ...g }))
+let data, degree, maxDeg, connectedIds, cy
+const WEEK_MS   = 7 * 24 * 60 * 60 * 1000
+const ALL_TYPES = new Set(Object.keys(TYPE_COLOR))
+let activeTypes = new Set(ALL_TYPES)
+function isFresh(n) {
+  if (!n.created) return false
+  return Date.now() - new Date(n.created).getTime() < WEEK_MS
+}
+
+// ── Particle system state ──────────────────────────────────
+const pCanvas  = document.getElementById('particles')
+const pCtx     = pCanvas.getContext('2d')
+let   pList    = []   // { edge, t, speed, trail }
+let   pRunning = false
+
+function hexToRgb(hex) {
+  const h = hex.replace('#','')
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]
+}
+
+function resizePCanvas() {
+  pCanvas.width  = window.innerWidth
+  pCanvas.height = window.innerHeight
+}
+
+function initParticles() {
+  pList = []
+  cy.edges().forEach(edge => {
+    if (Math.random() > particleDens) return
+    pList.push({
+      edge,
+      t:     Math.random(),
+      speed: 0.00035 + Math.random() * 0.00045,
+    })
+  })
+}
+
+function drawNodeGlows() {
+  cy.nodes().forEach(n => {
+    if (n.hasClass('dimmed')) return
+    const pos    = n.renderedPosition()
+    const radius = n.renderedWidth() / 2
+    const color  = n.data('color') || '#5b9cf6'
+    const [r,g,b] = hexToRgb(color)
+    const isHi    = n.hasClass('hi-node') || n.hasClass('focal')
+    const isHub   = (n.data('deg') || 0) > 5
+    const isFresh = n.data('fresh')
+    const pulse   = isFresh ? 0.7 + 0.3 * Math.sin(Date.now() / 800) : 1
+    const glowR   = radius * (isHi ? 3.5 : isHub ? 2.8 : isFresh ? 2.5 : 2.0)
+    const alpha   = (isHi ? 0.60 : isHub ? 0.38 : isFresh ? 0.45 : 0.22) * pulse
+
+    const grad = pCtx.createRadialGradient(pos.x, pos.y, radius * 0.2, pos.x, pos.y, glowR)
+    grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha})`)
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},${alpha * 0.3})`)
+    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`)
+
+    pCtx.beginPath()
+    pCtx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2)
+    pCtx.fillStyle = grad
+    pCtx.fill()
+  })
+}
+
+function tickParticles() {
+  resizePCanvas()
+  pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height)
+
+  // 1. Node glows (behind particles)
+  drawNodeGlows()
+
+  // 2. Edge particles
+  for (const p of pList) {
+    p.t += p.speed
+    if (p.t > 1) p.t = 0
+
+    const src = p.edge.source()
+    const tgt = p.edge.target()
+    // skip when both endpoints are dimmed
+    if (src.hasClass('dimmed') && tgt.hasClass('dimmed')) continue
+
+    const sp = src.renderedPosition()
+    const tp = tgt.renderedPosition()
+    const x  = sp.x + (tp.x - sp.x) * p.t
+    const y  = sp.y + (tp.y - sp.y) * p.t
+
+    // opacity envelope: rises and falls along path
+    const env   = Math.sin(p.t * Math.PI)
+    const alpha = 0.25 + 0.55 * env
+
+    const color = src.data('color') || '#5b9cf6'
+    const [r,g,b] = hexToRgb(color)
+
+    // outer halo
+    const g1 = pCtx.createRadialGradient(x, y, 0, x, y, 7)
+    g1.addColorStop(0,    `rgba(${r},${g},${b},${alpha})`)
+    g1.addColorStop(0.45, `rgba(${r},${g},${b},${alpha * 0.25})`)
+    g1.addColorStop(1,    `rgba(${r},${g},${b},0)`)
+    pCtx.beginPath()
+    pCtx.arc(x, y, 7, 0, Math.PI * 2)
+    pCtx.fillStyle = g1
+    pCtx.fill()
+
+    // bright core dot
+    pCtx.beginPath()
+    pCtx.arc(x, y, 1.5, 0, Math.PI * 2)
+    pCtx.fillStyle = `rgba(${r},${g},${b},${Math.min(1, alpha * 1.8)})`
+    pCtx.fill()
+  }
+
+  if (pRunning) requestAnimationFrame(tickParticles)
+}
+
+function startParticles() {
+  pRunning = true
+  requestAnimationFrame(tickParticles)
+}
+
+function stopParticles() {
+  pRunning = false
+  pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height)
+}
+
+// ── Idle drift — keeps graph gently alive ──────────────────
+function startIdleDrift() {
+  setInterval(() => {
+    if (!cy || localMode || document.hidden) return
+    cy.nodes().not('.pinned').forEach(n => {
+      const deg   = n.data('deg') || 0
+      const range = Math.max(2, 10 - deg * 0.4)   // hubs move less
+      const pos   = n.position()
+      n.animate({
+        position: {
+          x: pos.x + (Math.random() - 0.5) * range,
+          y: pos.y + (Math.random() - 0.5) * range,
+        }
+      }, {
+        duration: 3000 + Math.random() * 2500,
+        easing:   'ease-in-out-sine',
+        queue:    false,
+      })
+    })
+  }, 4000)
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function nodeColor(n) {
+  const tags = n.data('tags') || []
+  for (const g of groups) {
+    if (!g.tags.trim()) continue
+    const gtags = g.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+    if (gtags.some(gt => tags.some(t => t.toLowerCase().includes(gt)))) return g.color
+  }
+  return TYPE_COLOR[n.data('type')] || '#a78bfa'
+}
+
+function buildElements(showAll, focusId, depth) {
+  let visibleNodes
+  if (focusId) {
+    const seen     = new Set([focusId])
+    let   frontier = [focusId]
+    for (let d = 0; d < depth; d++) {
+      const next = []
+      for (const id of frontier) {
+        for (const e of data.edges) {
+          if (e.source === id && !seen.has(e.target)) { seen.add(e.target); next.push(e.target) }
+          if (e.target === id && !seen.has(e.source)) { seen.add(e.source); next.push(e.source) }
+        }
+      }
+      frontier = next
+    }
+    visibleNodes = data.nodes.filter(n => seen.has(n.id))
+  } else {
+    visibleNodes = showAll ? data.nodes : data.nodes.filter(n => connectedIds.has(n.id))
+    if (activeTypes.size < ALL_TYPES.size) visibleNodes = visibleNodes.filter(n => activeTypes.has(n.type || 'root'))
+  }
+
+  const visibleIds   = new Set(visibleNodes.map(n => n.id))
+  const visibleEdges = data.edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target))
+
+  return [
+    ...visibleNodes.map(n => ({
+      data: {
+        id:      n.id,
+        label:   n.title || n.id.split('/').pop(),
+        type:    n.type  || 'root',
+        tags:    (n.tags || []).filter(t => !['inbox','meta','link','image','telegram'].includes(t)).slice(0,4),
+        deg:     degree[n.id] || 0,
+        rawSize: 14 + ((degree[n.id] || 0) / maxDeg) * 30,
+        color:   TYPE_COLOR[n.type] || '#a78bfa',
+        fresh:   isFresh(n),
+      }
+    })),
+    ...visibleEdges.map((e, i) => ({
+      data: { id:`e${i}`, source:e.source, target:e.target }
+    }))
+  ]
+}
+
+function getLayoutConfig() {
+  return {
+    name:     'cose',
+    animate:  true,
+    animationDuration: 600,
+    randomize: !localMode,
+    nodeRepulsion:   () => +document.getElementById('sl-repel').value,
+    idealEdgeLength: () => +document.getElementById('sl-dist').value,
+    edgeElasticity:  () => +document.getElementById('sl-elas').value,
+    gravity:             +document.getElementById('sl-grav').value,
+    numIter:  localMode ? 400 : 700,
+    fit: true, padding: 60,
+    nodeDimensionsIncludeLabels: true,
+    componentSpacing: 70,
+    coolingFactor: 0.97,
+  }
+}
+
+function updateStats() {
+  const shown = localMode
+    ? cy.nodes().length
+    : (showOrphans ? data.nodes.length : connectedIds.size)
+  document.getElementById('stats').textContent =
+    `${shown} nodes · ${data.edges.length} edges`
+}
+
+function applyGroupColors() {
+  cy.nodes().forEach(n => { n.data('color', nodeColor(n)) })
+  cy.style().update()
+}
+
+function applyZoomLabels() {
+  const zoom      = cy.zoom()
+  const threshold = labelFade
+  const opacity   = Math.min(1, Math.max(0, (zoom - threshold * 0.4) / (threshold * 0.6)))
+  cy.nodes().style('color', `rgba(220,230,245,${opacity})`)
+}
+
+// ── Main ───────────────────────────────────────────────────
+async function init() {
+  if (typeof cytoscape === 'undefined') {
+    // cytoscape.min.js failed to load — usually an expired auth session that
+    // served a 401 instead of the script. One reload re-triggers the login
+    // flow; the sessionStorage flag prevents a reload loop.
+    if (!sessionStorage.getItem('graph-cy-reload')) {
+      sessionStorage.setItem('graph-cy-reload', '1')
+      location.reload()
+      return
+    }
+    throw new Error('cytoscape failed to load — session may have expired, try a hard refresh (Cmd+Shift+R)')
+  }
+  sessionStorage.removeItem('graph-cy-reload')
+
+  const res  = await fetch('/static/kg/graph.json', { credentials: 'include' })
+  if (res.status === 401) { location.reload(); return }
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} — graph data unavailable`)
+  data       = await res.json()
+
+  degree = {}
+  data.edges.forEach(e => {
+    degree[e.source] = (degree[e.source] || 0) + 1
+    degree[e.target] = (degree[e.target] || 0) + 1
+  })
+  maxDeg       = Math.max(...Object.values(degree), 1)
+  connectedIds = new Set(data.edges.flatMap(e => [e.source, e.target]))
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements:  buildElements(false, null, 1),
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'width':  n => (14 + (n.data('deg')||0)/maxDeg*30) * nodeSizeMul,
+          'height': n => (14 + (n.data('deg')||0)/maxDeg*30) * nodeSizeMul,
+          'background-color': 'data(color)',
+          'border-width': 0,
+          'label':           'data(label)',
+          'font-size':       10,
+          'font-family':     '"Assistant",system-ui,sans-serif',
+          'color':           'rgba(220,230,245,0)',   // start invisible, zoom reveals
+          'text-valign':     'bottom',
+          'text-halign':     'center',
+          'text-margin-y':   5,
+          'text-max-width':  100,
+          'text-wrap':       'ellipsis',
+          'min-zoomed-font-size': 7,
+          'transition-property': 'opacity',
+          'transition-duration': '200ms',
+        }
+      },
+      {
+        // Hub nodes: bold label
+        selector: 'node[deg > 4]',
+        style: {
+          'font-size':   12,
+          'font-weight': 700,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width':       edgeWidth,
+          'line-color':  'rgba(255,255,255,0.07)',
+          'curve-style': 'bezier',
+          // No arrows — cleaner neural-network look
+          'target-arrow-shape': 'none',
+          'opacity': 1,
+        }
+      },
+      // ── States ──
+      { selector: '.dimmed',  style: { 'opacity': 0.05 } },
+      {
+        selector: '.hi-node',
+        style: { 'z-index': 10 }
+      },
+      {
+        selector: '.focal',
+        style: {
+          'border-width':   3,
+          'border-color':   '#fbbf24',
+          'border-opacity': 1,
+          'z-index':        20,
+        }
+      },
+      {
+        selector: '.hi-edge',
+        style: {
+          'line-color': 'rgba(91,156,246,0.55)',
+          'width':      2,
+          'opacity':    1,
+        }
+      },
+      {
+        selector: '.pinned',
+        style: {
+          'border-width':   2,
+          'border-color':   '#fbbf24',
+          'border-opacity': 0.7,
+        }
+      },
+    ],
+    layout:  getLayoutConfig(),
+    minZoom: 0.1,
+    maxZoom: 6,
+  })
+
+  updateStats()
+  applyGroupColors()
+
+  // ── Layout done: start animations ──
+  cy.one('layoutstop', () => {
+    document.getElementById('loading').style.display = 'none'
+    cy.fit(undefined, 50)
+    applyZoomLabels()
+    initParticles()
+    startParticles()
+    startIdleDrift()
+  })
+
+  cy.on('zoom', applyZoomLabels)
+
+  // ── Tooltip ──
+  const tooltip = document.getElementById('tooltip')
+  cy.on('mouseover', 'node', e => {
+    const n  = e.target
+    const rp = e.renderedPosition
+    tooltip.style.display = 'block'
+    tooltip.style.left    = rp.x + 'px'
+    tooltip.style.top     = rp.y + 'px'
+    document.getElementById('tip-title').textContent = n.data('label')
+    document.getElementById('tip-meta').textContent  =
+      n.data('type') + (n.data('deg') ? ` · ${n.data('deg')} links` : '')
+    const tags = n.data('tags')
+    document.getElementById('tip-tags').textContent =
+      tags && tags.length ? '#' + tags.join(' #') : ''
+    document.getElementById('tip-hint').textContent =
+      'Click: open  ·  Double-click: local graph'
+  })
+  cy.on('mouseout',   'node', () => { tooltip.style.display = 'none' })
+  cy.on('pan zoom',   ()     => { tooltip.style.display = 'none' })
+
+  // ── Hover highlight ──
+  cy.on('mouseover', 'node', e => {
+    const n = e.target
+    cy.elements().addClass('dimmed')
+    n.removeClass('dimmed').addClass('hi-node')
+    n.connectedEdges().removeClass('dimmed').addClass('hi-edge')
+    n.neighborhood('node').removeClass('dimmed').addClass('hi-node')
+  })
+  cy.on('mouseout', 'node', () => {
+    if (!localMode) cy.elements().removeClass('dimmed hi-node hi-edge')
+  })
+
+  // ── Click → navigate ──
+  cy.on('tap', 'node', e => {
+    if (e.originalEvent.detail === 2) return
+    const id = e.target.data('id')
+    if (!['catalog','log','activity'].includes(id)) {
+      window.open('/' + id, '_blank')
+    }
+  })
+
+  // ── Double-click → local graph ──
+  cy.on('dblclick', 'node', e => {
+    enterLocalMode(e.target.data('id'), e.target.data('label'))
+  })
+
+  // ── Pin on drag ──
+  cy.on('dragfree', 'node', e => {
+    if (pinMode) {
+      e.target.lock()
+      e.target.addClass('pinned')
+    }
+  })
+  cy.on('dblclick', '.pinned', e => {
+    e.target.unlock()
+    e.target.removeClass('pinned')
+  })
+
+  // ── Local mode controls ──
+  document.querySelectorAll('.depth-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      localDepth = +btn.dataset.d
+      document.querySelectorAll('.depth-btn').forEach(b =>
+        b.classList.toggle('active', +b.dataset.d === localDepth))
+      if (localMode) refreshLocalGraph()
+    })
+  })
+  document.getElementById('back-btn').addEventListener('click', exitLocalMode)
+
+  // ── Search ──
+  document.getElementById('search').addEventListener('input', ev => {
+    const q = ev.target.value.trim().toLowerCase()
+    if (!q) { cy.elements().removeClass('dimmed hi-node'); return }
+    cy.elements().addClass('dimmed')
+    cy.nodes().filter(n =>
+      n.data('label').toLowerCase().includes(q) ||
+      (n.data('tags') || []).some(t => t.toLowerCase().includes(q))
+    ).removeClass('dimmed').addClass('hi-node')
+  })
+
+  // ── Show all toggle ──
+  document.getElementById('btn-orphans').addEventListener('click', () => {
+    showOrphans = !showOrphans
+    document.getElementById('btn-orphans').textContent =
+      showOrphans ? 'Connected only' : 'Show all'
+    document.getElementById('btn-orphans').classList.toggle('active', showOrphans)
+    rebuildGraph()
+  })
+
+  // ── Type filter chips ──
+  document.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.type
+      if (activeTypes.has(type)) activeTypes.delete(type)
+      else activeTypes.add(type)
+      btn.classList.toggle('active', activeTypes.has(type))
+      if (!localMode) rebuildGraph()
+    })
+  })
+
+  // ── Context menu ──
+  let ctxNode = null
+  const ctxMenu = document.getElementById('ctx-menu')
+  cy.on('cxttap', 'node', e => {
+    ctxNode = e.target
+    const rp = e.renderedPosition
+    ctxMenu.style.left = Math.min(rp.x, window.innerWidth - 160) + 'px'
+    ctxMenu.style.top  = Math.min(rp.y, window.innerHeight - 120) + 'px'
+    ctxMenu.style.display = 'block'
+  })
+  document.addEventListener('click', () => { ctxMenu.style.display = 'none' })
+  document.getElementById('ctx-open').onclick = () => {
+    if (ctxNode && !['catalog','log','activity'].includes(ctxNode.data('id')))
+      window.open('/' + ctxNode.data('id'), '_blank')
+  }
+  document.getElementById('ctx-local').onclick = () => {
+    if (ctxNode) enterLocalMode(ctxNode.data('id'), ctxNode.data('label'))
+  }
+  document.getElementById('ctx-copy').onclick = () => {
+    if (ctxNode) navigator.clipboard.writeText(location.origin + '/' + ctxNode.data('id'))
+  }
+  document.getElementById('ctx-pin').onclick = () => {
+    if (!ctxNode) return
+    if (ctxNode.hasClass('pinned')) { ctxNode.unlock(); ctxNode.removeClass('pinned') }
+    else { ctxNode.lock(); ctxNode.addClass('pinned') }
+  }
+
+  // ── Recent panel ──
+  document.getElementById('btn-recent').addEventListener('click', () => {
+    const panel = document.getElementById('recent-panel')
+    const isOpen = panel.classList.toggle('open')
+    document.getElementById('btn-recent').classList.toggle('active', isOpen)
+    if (isOpen) buildRecentPanel()
+  })
+
+  // ── Settings panel ──
+  document.getElementById('btn-settings').addEventListener('click', () => {
+    document.getElementById('settings-panel').classList.toggle('open')
+    document.getElementById('btn-settings').classList.toggle('active')
+  })
+
+  // ── Force sliders ──
+  ;[
+    ['sl-repel','vl-repel'],
+    ['sl-dist', 'vl-dist'],
+    ['sl-elas', 'vl-elas'],
+    ['sl-grav', 'vl-grav'],
+  ].forEach(([sid, vid]) => {
+    const sl = document.getElementById(sid)
+    const vl = document.getElementById(vid)
+    sl.addEventListener('input', () => { vl.textContent = sl.value })
+  })
+  document.getElementById('btn-relayout').addEventListener('click', () => {
+    cy.layout(getLayoutConfig()).run()
+  })
+
+  // ── Display sliders ──
+  document.getElementById('sl-nodesize').addEventListener('input', e => {
+    nodeSizeMul = +e.target.value
+    document.getElementById('vl-nodesize').textContent = nodeSizeMul.toFixed(1) + '×'
+    cy.nodes().forEach(n => {
+      const s = (14 + (n.data('deg')||0) / maxDeg * 30) * nodeSizeMul
+      n.style({ width: s, height: s })
+    })
+  })
+  document.getElementById('sl-edgewidth').addEventListener('input', e => {
+    edgeWidth = +e.target.value
+    document.getElementById('vl-edgewidth').textContent = edgeWidth
+    cy.edges().style('width', edgeWidth)
+  })
+  document.getElementById('sl-fade').addEventListener('input', e => {
+    labelFade = +e.target.value
+    document.getElementById('vl-fade').textContent = labelFade.toFixed(2) + '×'
+    applyZoomLabels()
+  })
+  document.getElementById('sl-particles').addEventListener('input', e => {
+    particleDens = +e.target.value
+    document.getElementById('vl-particles').textContent = Math.round(particleDens * 100) + '%'
+    initParticles()
+  })
+
+  // ── Color groups ──
+  buildGroupsUI()
+
+  // ── Controls ──
+  document.getElementById('btn-fit').onclick   = () => cy.fit(undefined, 50)
+  document.getElementById('btn-plus').onclick  = () =>
+    cy.zoom({ level: cy.zoom() * 1.3, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } })
+  document.getElementById('btn-minus').onclick = () =>
+    cy.zoom({ level: cy.zoom() / 1.3, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } })
+  document.getElementById('btn-pin').addEventListener('click', () => {
+    pinMode = !pinMode
+    document.getElementById('btn-pin').classList.toggle('active', pinMode)
+    if (!pinMode) { cy.nodes('.pinned').unlock().removeClass('pinned') }
+  })
+}
+
+// ── Local graph mode ───────────────────────────────────────
+function enterLocalMode(id, label) {
+  localMode   = true
+  localNodeId = id
+  document.getElementById('local-title').textContent = label
+  document.getElementById('local-bar').classList.add('show')
+  refreshLocalGraph()
+}
+
+function refreshLocalGraph() {
+  stopParticles()
+  cy.elements().remove()
+  cy.add(buildElements(true, localNodeId, localDepth))
+  applyGroupColors()
+  updateStats()
+  cy.nodes('[id = "' + localNodeId + '"]').addClass('focal')
+  cy.layout({ ...getLayoutConfig(), randomize: true, numIter: 600, padding: 50 }).run()
+  cy.one('layoutstop', () => {
+    initParticles()
+    startParticles()
+  })
+}
+
+function exitLocalMode() {
+  localMode   = false
+  localNodeId = null
+  document.getElementById('local-bar').classList.remove('show')
+  rebuildGraph()
+}
+
+// ── Rebuild graph ──────────────────────────────────────────
+function rebuildGraph() {
+  stopParticles()
+  cy.elements().remove()
+  cy.add(buildElements(showOrphans, null, 1))
+  applyGroupColors()
+  updateStats()
+  cy.layout(getLayoutConfig()).run()
+  cy.one('layoutstop', () => {
+    initParticles()
+    startParticles()
+  })
+}
+
+// ── Recent panel ──────────────────────────────────────────
+function buildRecentPanel() {
+  const container = document.getElementById('recent-list')
+  container.innerHTML = ''
+  const sorted = [...data.nodes]
+    .filter(n => n.created)
+    .sort((a, b) => new Date(b.created) - new Date(a.created))
+    .slice(0, 30)
+
+  for (const n of sorted) {
+    const color = TYPE_COLOR[n.type] || '#a78bfa'
+    const date  = new Date(n.created).toLocaleDateString('he-IL', { day:'numeric', month:'short', year:'numeric' })
+    const item  = document.createElement('div')
+    item.className = 'rn-item'
+    item.innerHTML = `
+      <div class="rn-dot" style="background:${color};color:${color}"></div>
+      <div class="rn-body">
+        <div class="rn-title">${n.title || n.id.split('/').pop()}</div>
+        <div class="rn-date">${date}</div>
+      </div>`
+    item.addEventListener('click', () => {
+      document.getElementById('recent-panel').classList.remove('open')
+      document.getElementById('btn-recent').classList.remove('active')
+      enterLocalMode(n.id, n.title || n.id.split('/').pop())
+    })
+    container.appendChild(item)
+  }
+}
+
+// ── Color Groups UI ────────────────────────────────────────
+function buildGroupsUI() {
+  const container = document.getElementById('groups-container')
+  container.innerHTML = ''
+  groups.forEach((g, i) => {
+    const row = document.createElement('div')
+    row.className = 'group-row'
+    row.innerHTML = `
+      <input type="color" class="group-color" value="${g.color}" data-i="${i}">
+      <input type="text" class="group-input" placeholder="tag1, tag2…" value="${g.tags}" data-i="${i}">`
+    container.appendChild(row)
+  })
+  container.querySelectorAll('.group-color').forEach(el => {
+    el.addEventListener('input', e => {
+      groups[+e.target.dataset.i].color = e.target.value
+      applyGroupColors()
+    })
+  })
+  container.querySelectorAll('.group-input').forEach(el => {
+    el.addEventListener('input', e => {
+      groups[+e.target.dataset.i].tags = e.target.value
+      applyGroupColors()
+    })
+  })
+}
+
+// ── Resize ────────────────────────────────────────────────
+window.addEventListener('resize', resizePCanvas)
+
+// ── Boot ──────────────────────────────────────────────────
+resizePCanvas()
+init().catch(err => {
+  document.getElementById('loading').innerHTML =
+    `<p style="color:#ef4444;padding:20px">Error loading graph: ${err.message}</p>`
+  console.error(err)
+})
+</script>
+</body>
+</html>
