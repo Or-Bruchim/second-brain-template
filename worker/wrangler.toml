@@ -26,3 +26,4 @@ SITE_URL = "https://your-project.pages.dev" # TODO: replace with your Cloudflare
 # npx wrangler secret put GEMINI_API_KEY       ← enables deep video analysis (free tier, 1500 req/day)
 # npx wrangler secret put SUPABASE_URL         ← your Supabase project URL, e.g. https://xxxx.supabase.co
 # npx wrangler secret put SUPABASE_SERVICE_KEY ← service_role JWT (server-side only, never expose)
+# npx wrangler secret put AGENT_TOKEN          ← bearer token for the agent HTTP API (/ingest /search /ask /delete)
