@@ -19,7 +19,7 @@ import { appendActivityLog } from "./handlers.js"
 import { commitFile, deleteNote, triggerDeploy } from "./github.js"
 import { analyzeWithAI, fetchRichMeta } from "./media.js"
 import { expandQueryBilingually, retrieveRelevantNotes, upsertVector } from "./retrieve.js"
-import { decodeGithubContent, escapeHtmlTg, jsonResponse, simpleHash } from "./util.js"
+import { decodeGithubContent, jsonResponse, simpleHash } from "./util.js"
 
 const VALID_FOLDERS = new Set(["inbox", "journal", "recipes"])
 
@@ -208,12 +208,20 @@ export async function handleAgentAsk(request, env) {
   try { body = await request.json() } catch { return jsonResponse({ error: "Bad JSON" }, 400) }
   const question = (body.question || "").trim()
   if (!question) return jsonResponse({ error: "Missing question" }, 400)
-  const history = Array.isArray(body.history) ? body.history.slice(-6) : []
+  // Normalize history: accept {role, content} or {role, text}; map any non-user
+  // role to "assistant" (Workers AI messages only allow user/assistant/system).
+  const history = (Array.isArray(body.history) ? body.history : [])
+    .slice(-6)
+    .map(h => ({
+      role: h?.role === "user" ? "user" : "assistant",
+      content: String(h?.content ?? h?.text ?? ""),
+    }))
+    .filter(h => h.content)
 
   try {
     const siteUrl = env.SITE_URL || "https://your-project.pages.dev"
-    const recentCtx = history.map(h => h.content || "").join(" ")
-    const [expanded] = await Promise.all([expandQueryBilingually(question, env)])
+    const recentCtx = history.map(h => h.content).join(" ")
+    const expanded = await expandQueryBilingually(question, env)
     const expandedQuery = `${expanded} ${recentCtx}`.slice(0, 2000)
 
     const notes = await retrieveRelevantNotes(expandedQuery, history, siteUrl, env)
@@ -272,7 +280,7 @@ export async function handleAgentRecent(request, env) {
 
   try {
     const siteUrl = env.SITE_URL || "https://your-project.pages.dev"
-    const branch = env.GITHUB_BRANCH || "main"
+    const branch = env.GITHUB_BRANCH || "v4" // match github.js commitFile default
     const ghHeaders = { Authorization: `Bearer ${env.GITHUB_TOKEN}`, "User-Agent": "OrBrainBot" }
 
     // List content/inbox from GitHub (the public site is passphrase-gated, so a
@@ -318,7 +326,7 @@ export async function handleAgentDelete(request, env) {
 
   try {
     const { deleted, mainFound } = await deleteNote(slug, env)
-    return jsonResponse({ ok: mainFound, deleted, slug: escapeHtmlTg(slug) })
+    return jsonResponse({ ok: mainFound, deleted, slug })
   } catch (err) {
     console.error("handleAgentDelete error:", err)
     return jsonResponse({ error: "Delete failed", detail: String(err?.message || err) }, 500)
