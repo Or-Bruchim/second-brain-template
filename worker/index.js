@@ -1,4 +1,4 @@
-import { handleAgentAsk, handleAgentDelete, handleAgentIngest, handleAgentSearch } from "./agent-api.js"
+import { handleAgentAsk, handleAgentDelete, handleAgentIngest, handleAgentRecent, handleAgentSearch } from "./agent-api.js"
 import { CORS_HEADERS } from "./constants.js"
 import { handleMemoryRefresh, handleReportGenerate, sendDailyDigest, sendWeeklyReview } from "./digest.js"
 import { handleAuth, handleChat, handleNoteDelete, handleNoteGet, handleNoteUpdate, handleSave, handleSynthesisSave, handleTelegramWebhook, processReminders } from "./handlers.js"
@@ -23,6 +23,7 @@ export default {
     if (url.pathname === '/ingest' && request.method === 'POST') return handleAgentIngest(request, env)
     if (url.pathname === '/search' && request.method === 'POST') return handleAgentSearch(request, env)
     if (url.pathname === '/ask' && request.method === 'POST') return handleAgentAsk(request, env)
+    if (url.pathname === '/recent' && request.method === 'POST') return handleAgentRecent(request, env)
     if (url.pathname === '/delete' && request.method === 'POST') return handleAgentDelete(request, env)
     return new Response('Not Found', { status: 404 })
   },

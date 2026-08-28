@@ -7,6 +7,7 @@
 //                  → { duplicate:true, existing } when a urls[] entry was saved before (unless force:true)
 //   POST /search   { query, limit? }
 //   POST /ask      { question, history? }
+//   POST /recent   { limit? }
 //   POST /delete   { slug }
 //
 // The existing Telegram pipeline in handlers.js is untouched; this module reuses
@@ -16,7 +17,7 @@
 import { appendActivityLog } from "./handlers.js"
 import { commitFile, deleteNote, triggerDeploy } from "./github.js"
 import { analyzeWithAI, fetchRichMeta } from "./media.js"
-import { expandQueryBilingually, retrieveRelevantNotes, upsertVector } from "./retrieve.js"
+import { expandQueryBilingually, getRecentNotes, retrieveRelevantNotes, upsertVector } from "./retrieve.js"
 import { escapeHtmlTg, jsonResponse, simpleHash } from "./util.js"
 
 const VALID_FOLDERS = new Set(["inbox", "journal", "recipes"])
@@ -256,6 +257,27 @@ export async function handleAgentAsk(request, env) {
   } catch (err) {
     console.error("handleAgentAsk error:", err)
     return jsonResponse({ error: "Ask failed", detail: String(err?.message || err) }, 500)
+  }
+}
+
+// ── POST /recent ─────────────────────────────────────────────────────────────
+export async function handleAgentRecent(request, env) {
+  const denied = guard(request, env)
+  if (denied) return denied
+
+  let body = {}
+  try { body = await request.json() } catch { /* body optional */ }
+  const limit = Math.min(Math.max(parseInt(body.limit, 10) || 5, 1), 20)
+
+  try {
+    const siteUrl = env.SITE_URL || "https://your-project.pages.dev"
+    const recent = await getRecentNotes(siteUrl, limit)
+    return jsonResponse({
+      results: recent.map(n => ({ slug: n.slug, title: n.title, date: n.date, url: `${siteUrl}/${n.slug}` })),
+    })
+  } catch (err) {
+    console.error("handleAgentRecent error:", err)
+    return jsonResponse({ error: "Recent failed", detail: String(err?.message || err) }, 500)
   }
 }
 
