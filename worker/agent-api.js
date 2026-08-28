@@ -14,11 +14,12 @@
 // the same low-level helpers (commitFile, upsertVector, retrieveRelevantNotes,
 // analyzeWithAI, fetchRichMeta, appendActivityLog).
 
+import { parseFrontmatterForReport } from "./digest.js"
 import { appendActivityLog } from "./handlers.js"
 import { commitFile, deleteNote, triggerDeploy } from "./github.js"
 import { analyzeWithAI, fetchRichMeta } from "./media.js"
-import { expandQueryBilingually, getRecentNotes, retrieveRelevantNotes, upsertVector } from "./retrieve.js"
-import { escapeHtmlTg, jsonResponse, simpleHash } from "./util.js"
+import { expandQueryBilingually, retrieveRelevantNotes, upsertVector } from "./retrieve.js"
+import { decodeGithubContent, escapeHtmlTg, jsonResponse, simpleHash } from "./util.js"
 
 const VALID_FOLDERS = new Set(["inbox", "journal", "recipes"])
 
@@ -271,10 +272,34 @@ export async function handleAgentRecent(request, env) {
 
   try {
     const siteUrl = env.SITE_URL || "https://your-project.pages.dev"
-    const recent = await getRecentNotes(siteUrl, limit)
-    return jsonResponse({
-      results: recent.map(n => ({ slug: n.slug, title: n.title, date: n.date, url: `${siteUrl}/${n.slug}` })),
-    })
+    const branch = env.GITHUB_BRANCH || "main"
+    const ghHeaders = { Authorization: `Bearer ${env.GITHUB_TOKEN}`, "User-Agent": "OrBrainBot" }
+
+    // List content/inbox from GitHub (the public site is passphrase-gated, so a
+    // server-side fetch of contentIndex.json would 401 — read the repo instead).
+    const listRes = await fetch(
+      `https://api.github.com/repos/${env.GITHUB_REPO}/contents/content/inbox?ref=${branch}`,
+      { headers: ghHeaders },
+    )
+    if (!listRes.ok) return jsonResponse({ results: [] })
+    const files = (await listRes.json())
+      .filter(f => f.type === "file" && f.name.endsWith(".md"))
+      .sort((a, b) => b.name.localeCompare(a.name)) // timestamp-prefixed → newest first
+      .slice(0, limit)
+
+    const results = await Promise.all(files.map(async f => {
+      const slug = `inbox/${f.name.replace(/\.md$/, "")}`
+      let title = f.name
+      let date = ""
+      try {
+        const raw = decodeGithubContent((await (await fetch(f.url, { headers: ghHeaders })).json()).content)
+        const fm = parseFrontmatterForReport(raw, f.name)
+        if (fm) { title = fm.title; date = fm.date }
+      } catch { /* keep filename */ }
+      return { slug, title, date, url: `${siteUrl}/${slug}` }
+    }))
+
+    return jsonResponse({ results })
   } catch (err) {
     console.error("handleAgentRecent error:", err)
     return jsonResponse({ error: "Recent failed", detail: String(err?.message || err) }, 500)
