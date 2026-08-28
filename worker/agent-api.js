@@ -3,7 +3,8 @@
 //   Authorization: Bearer <AGENT_TOKEN>
 //
 // Endpoints:
-//   POST /ingest   { text, urls?, tags?, whySaved?, whenToApply?, kind?, folder?, title?, summary? }
+//   POST /ingest   { text, urls?, tags?, whySaved?, whenToApply?, kind?, folder?, title?, summary?, force? }
+//                  → { duplicate:true, existing } when a urls[] entry was saved before (unless force:true)
 //   POST /search   { query, limit? }
 //   POST /ask      { question, history? }
 //   POST /delete   { slug }
@@ -55,6 +56,18 @@ export async function handleAgentIngest(request, env) {
   const slug = `${folder}/${bareSlug}`
 
   try {
+    // Duplicate-URL guard (mirrors the Telegram path). The dedup index lives in
+    // this Worker's KV, so the check has to happen here. Caller passes
+    // force:true to save anyway.
+    if (urls.length && env.BRAIN_KV && body.force !== true) {
+      for (const u of urls) {
+        const existing = await env.BRAIN_KV.get(`url_idx:${simpleHash(u)}`, "json")
+        if (existing) {
+          return jsonResponse({ duplicate: true, url: u, existing })
+        }
+      }
+    }
+
     const richUrls = await Promise.all(urls.map(u => fetchRichMeta(u, env)))
 
     // Enrich only what the caller didn't supply.
