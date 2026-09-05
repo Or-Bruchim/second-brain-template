@@ -37,9 +37,25 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - run: npm ci
+      # Template repos and forks have no GEMINI_API_KEY, so a push touching
+      # content/inbox would fail every time. Skip instead of failing when absent.
+      - name: Check for API key
+        id: key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY not set - skipping promote."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.key.outputs.present == 'true'
+        run: npm ci
 
       - name: Run promote
+        if: steps.key.outputs.present == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PROMOTE_FILES: ${{ inputs.files }}
@@ -52,7 +68,7 @@ jobs:
         run: node scripts/promote.mjs
 
       - name: Commit wiki updates
-        if: always()
+        if: always() && steps.key.outputs.present == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
