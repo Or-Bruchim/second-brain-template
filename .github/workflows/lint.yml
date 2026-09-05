@@ -26,14 +26,31 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - run: npm ci
+      # Template repos and forks have no GEMINI_API_KEY, so the weekly cron would
+      # fail every Monday. Skip instead of failing when the key is absent.
+      - name: Check for API key
+        id: key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY not set - skipping wiki lint."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.key.outputs.present == 'true'
+        run: npm ci
 
       - name: Run wiki lint
+        if: steps.key.outputs.present == 'true'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/lint-wiki.mjs
 
       - name: Commit lint report
+        if: steps.key.outputs.present == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
